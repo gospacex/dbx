@@ -1,20 +1,20 @@
 module github.com/gospacex/dbx
 
-go 1.26.2
+go 1.19
 
 require (
-	github.com/BurntSushi/toml v1.6.0
+	github.com/BurntSushi/toml v1.5.0
 	github.com/confluentinc/confluent-kafka-go/v2 v2.14.2
 	github.com/gospacex/mqx v0.0.1
 	github.com/redis/go-redis/v9 v9.20.0
 	go.opentelemetry.io/otel v1.44.0
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.44.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.32.0
 	go.opentelemetry.io/otel/sdk v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/mysql v1.5.7
-	gorm.io/driver/postgres v1.5.9
-	gorm.io/driver/sqlite v1.5.7
+	gorm.io/driver/postgres v1.5.7
+	gorm.io/driver/sqlite v1.5.6
 	gorm.io/driver/sqlserver v1.5.4
 	gorm.io/gorm v1.25.12
 	gorm.io/plugin/dbresolver v1.5.3

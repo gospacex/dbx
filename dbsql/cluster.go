@@ -36,6 +36,9 @@ func policyFromString(s string) dbresolver.Policy {
 }
 
 // OpenCluster opens a *gorm.DB with read/write splitting via dbresolver.
+//
+// Callers MUST defer ShutdownTracerProvider(ctx) before application exit
+// to flush pending spans and release resources when tracing is enabled.
 func OpenCluster(cc *config.ClusterConfig) (*gorm.DB, error) {
 	if err := cc.Validate(); err != nil {
 		return nil, fmt.Errorf("dbsql: cluster: %w", err)
@@ -96,6 +99,9 @@ func OpenCluster(cc *config.ClusterConfig) (*gorm.DB, error) {
 }
 
 // OpenClusterPath loads a ClusterConfig from a file and opens a *gorm.DB.
+//
+// Callers MUST defer ShutdownTracerProvider(ctx) before application exit
+// to flush pending spans and release resources when tracing is enabled.
 func OpenClusterPath(path string) (*gorm.DB, error) {
 	cc, tc, err := config.LoadCluster(path)
 	if err != nil {

@@ -12,6 +12,9 @@ import (
 
 // Open opens a *gorm.DB from a DBConfig. If the config includes Tracing,
 // the trace exporter is initialized before opening the connection.
+//
+// Callers MUST defer ShutdownTracerProvider(ctx) before application exit
+// to flush pending spans and release resources when tracing is enabled.
 func Open(cfg config.DBConfig) (*gorm.DB, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("dbsql: %w", err)
@@ -38,6 +41,9 @@ func Open(cfg config.DBConfig) (*gorm.DB, error) {
 
 // OpenPath loads a config from a file and opens a *gorm.DB.
 // The file format (yaml/json/toml) is determined by the extension.
+//
+// Callers MUST defer ShutdownTracerProvider(ctx) before application exit
+// to flush pending spans and release resources when tracing is enabled.
 func OpenPath(path string) (*gorm.DB, error) {
 	cfg, tc, err := config.Load(path)
 	if err != nil {
