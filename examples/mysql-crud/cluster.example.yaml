@@ -1,0 +1,77 @@
+# Cluster configuration (read/write splitting) for `go run . oc` (hardcoded)
+# and `go run . pc` (yaml). Replace REPLACE_ME with the real password before
+# running.
+#
+# The 4 sections (cluster / pool / trace / logger) are exhaustive for this example.
+# `trace:` uses mqx-standard field names; the example translates them
+# to dbx internal config.TracingConfig at startup.
+
+cluster:
+  driver: mysql
+  load_balance: round_robin    # round_robin (default) | random
+  sources:                     # write nodes (primary)
+    - host: 127.0.0.1
+      port: 3306
+      username: root
+      password: REPLACE_ME
+      database: example
+  replicas:                    # read nodes (optional; falls back to sources when empty)
+    - host: 127.0.0.1
+      port: 3307
+      username: root
+      password: REPLACE_ME
+      database: example
+
+pool:
+  max_open_conns: 50
+  max_idle_conns: 10
+  conn_max_lifetime: 1800      # seconds
+  conn_max_idle_time: 600      # seconds
+
+# Trace config aligned with mqx standard (same field naming as mysql.example.yaml).
+# mode: single (mqx standard; drives redisx.POS vs redisx.POC; kafka ignores it)
+trace:
+  enabled: true
+  service_name: mysql-crud-example
+  exporter: jaeger
+  endpoint: localhost:4318
+  protocol: http
+  sampler_type: always_on
+  sampler_ratio: 1.0
+  mode: single
+
+  # To switch to kafka, comment out the jaeger block above and uncomment below:
+  # enabled: true
+  # service_name: mysql-crud-example
+  # exporter: kafka
+  # endpoint: localhost:9092
+  # mode: single                       # kafka ignores mode (kafkax.POS always)
+  # topic: otel-traces
+  # kafka_username: ""
+  # kafka_password: ""
+  # kafka_security_protocol: PLAINTEXT
+  # kafka_sasl_mechanism: PLAIN
+
+  # To switch to redis_stream (single node), uncomment below:
+  # enabled: true
+  # service_name: mysql-crud-example
+  # exporter: redis_stream
+  # endpoint: localhost:6379
+  # mode: single                       # → redisx.POS → *redis.Client
+  # stream: otel-traces
+  # redis_password: ""
+
+  # To switch to redis_stream (cluster), uncomment below:
+  # enabled: true
+  # service_name: mysql-crud-example
+  # exporter: redis_stream
+  # endpoint: 10.0.0.1:6379,10.0.0.2:6379,10.0.0.3:6379
+  # mode: cluster                      # → redisx.POC → *redis.ClusterClient
+  # stream: otel-traces
+  # redis_password: ""
+
+logger:
+  level: info
+  color: true
+  slow_threshold_ms: 200
+  ignore_record_not_found: true
