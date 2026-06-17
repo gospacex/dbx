@@ -4,6 +4,7 @@
 go.sum
 
 # Compiled and build artifacts
+# Go build artifacts
 *.o
 *.obj
 *.a
@@ -33,6 +34,14 @@ pkg/
 *.prof
 
 # Logs and temp files
+# Go cache directories
+go/pkg/
+go/bin/
+
+# Dependencies
+vendor/
+
+# Logs
 *.log
 *.tmp
 *.swp
@@ -49,6 +58,7 @@ pkg/
 *.swo
 
 # System
+# OS generated files
 .DS_Store
 Thumbs.db
 
@@ -61,4 +71,6 @@ htmlcov/
 dist/
 build/
 target/
+# Temporary files
+*.tmp
 ```

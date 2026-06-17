@@ -4,14 +4,26 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/gospacex/dbx/config"
 	"github.com/gospacex/dbx/observability/tracing"
 	"github.com/gospacex/mqx"
 	"github.com/gospacex/mqx/kafkax"
 	"github.com/gospacex/mqx/redisx"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/resource"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+)
+
+var (
+	// globalTP stores the globally registered TracerProvider.
+	// Protected by tpMu for concurrent initialization.
+	globalTP *sdktrace.TracerProvider
+	tpMu     sync.Mutex
 )
 
 // CreateExporter creates a span exporter based on TracingConfig.
@@ -110,21 +122,98 @@ func RedisConfigFromTracing(tc *config.TracingConfig) (addr, password string) {
 	return tc.Endpoint, tc.RedisPassword
 }
 
-// ExtractTracingAndApply is a no-op kept for backward compatibility.
+// ExtractTracingAndApply initializes the global OTel TracerProvider from
+// TracingConfig and registers it with otel.SetTracerProvider. This enables
+// automatic GORM tracing via the callbacks installed by orm.Open().
 //
-// dbx does NOT own the OTel global state: the caller is expected to
-// set up a TracerProvider themselves (via the OTel SDK, or by calling
-// dbsql.CreateExporter and wiring it into a TracerProvider). Calling
-// CreateExporter here would leak a second kafka/redis connection
-// when the example (or any other caller) has already done so.
+// The function is idempotent: if a TracerProvider has already been initialized,
+// subsequent calls with different configs are ignored to prevent resource leaks.
+// To reinitialize, call ShutdownTracerProvider() first.
 //
-// The TracingConfig on DBConfig / ClusterConfig is still validated by
-// Validate() at config-load time, so misconfigurations still surface
-// before any queries run.
+// When tc is nil or tc.Enabled is false, the function returns immediately
+// without setting up any tracing infrastructure.
+//
+// Callers MUST defer ShutdownTracerProvider(ctx) before application exit to
+// flush pending spans and release resources.
 func ExtractTracingAndApply(ctx context.Context, tc *config.TracingConfig) error {
-	_ = ctx
-	_ = tc
+	if tc == nil || !tc.Enabled {
+		return nil
+	}
+
+	tpMu.Lock()
+	defer tpMu.Unlock()
+
+	// Idempotency check: skip if already initialized
+	if globalTP != nil {
+		return nil
+	}
+
+	exp, err := CreateExporter(ctx, tc)
+	if err != nil {
+		return fmt.Errorf("dbsql: create exporter: %w", err)
+	}
+
+	res, err := resource.New(ctx,
+		resource.WithAttributes(
+			semconv.ServiceName(tc.Service),
+		),
+	)
+	if err != nil {
+		return fmt.Errorf("dbsql: build resource: %w", err)
+	}
+
+	sampler := parentBasedSampler(tc)
+
+	globalTP = sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exp),
+		sdktrace.WithResource(res),
+		sdktrace.WithSampler(sampler),
+	)
+	otel.SetTracerProvider(globalTP)
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+
 	return nil
+}
+
+// ShutdownTracerProvider gracefully shuts down the global TracerProvider.
+// It flushes pending spans and releases all resources.
+// Call this function during application shutdown to ensure no spans are lost.
+//
+// The function is safe to call multiple times and is a no-op if no
+// TracerProvider has been initialized.
+func ShutdownTracerProvider(ctx context.Context) error {
+	tpMu.Lock()
+	defer tpMu.Unlock()
+
+	if globalTP == nil {
+		return nil
+	}
+
+	// Order is fixed: shutdown first to stop new spans, then
+	// force flush to drain anything buffered by the batcher.
+	if err := globalTP.Shutdown(ctx); err != nil {
+		return fmt.Errorf("dbsql: tp.Shutdown: %w", err)
+	}
+	if err := globalTP.ForceFlush(ctx); err != nil {
+		return fmt.Errorf("dbsql: tp.ForceFlush: %w", err)
+	}
+
+	globalTP = nil
+	return nil
+}
+
+// parentBasedSampler returns a Sampler that respects the upstream
+// sampling decision. The ratio is forwarded to TraceIDRatioBased so
+// ratio-driven configs still take effect.
+func parentBasedSampler(tc *config.TracingConfig) sdktrace.Sampler {
+	switch tc.SamplerType {
+	case "parentbased_always_off", "always_off":
+		return sdktrace.ParentBased(sdktrace.NeverSample())
+	case "parentbased_traceidratio", "traceidratio":
+		return sdktrace.ParentBased(sdktrace.TraceIDRatioBased(tc.SamplerRatio))
+	default:
+		return sdktrace.ParentBased(sdktrace.AlwaysSample())
+	}
 }
 
 // newJaegerHTTPExporter builds an otlptracehttp exporter for the jaeger
