@@ -5,7 +5,9 @@ go 1.26.2
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/confluentinc/confluent-kafka-go/v2 v2.14.2
+	github.com/gospacex/hubx v0.0.0
 	github.com/gospacex/mqx v0.0.1
+	github.com/mitchellh/mapstructure v1.5.0
 	github.com/redis/go-redis/v9 v9.20.0
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.44.0
@@ -38,6 +40,7 @@ require (
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/klauspost/compress v1.18.5 // indirect
+	github.com/lib/pq v1.12.3 // indirect
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/microsoft/go-mssqldb v1.7.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
@@ -66,3 +69,5 @@ require (
 	google.golang.org/grpc v1.81.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
+
+replace github.com/gospacex/hubx => ../hubx
