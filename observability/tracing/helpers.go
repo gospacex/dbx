@@ -3,6 +3,7 @@ package tracing
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
@@ -23,7 +24,7 @@ type spanData struct {
 
 // marshalSpanJSON serializes a ReadOnlySpan to JSON bytes.
 func marshalSpanJSON(span sdktrace.ReadOnlySpan) ([]byte, error) {
-	attrs := make(map[string]string, span.DroppedAttributes())
+	attrs := make(map[string]string, len(span.Attributes()))
 	for _, kv := range span.Attributes() {
 		attrs[string(kv.Key)] = kv.Value.AsString()
 	}
@@ -34,8 +35,8 @@ func marshalSpanJSON(span sdktrace.ReadOnlySpan) ([]byte, error) {
 		SpanID:       span.SpanContext().SpanID().String(),
 		ParentSpanID: span.Parent().SpanID().String(),
 		Kind:         span.SpanKind().String(),
-		StartTime:    span.StartTime().Format("2006-01-02T15:04:05.999999999Z"),
-		EndTime:      span.EndTime().Format("2006-01-02T15:04:05.999999999Z"),
+		StartTime:    span.StartTime().UTC().Format(time.RFC3339Nano),
+		EndTime:      span.EndTime().UTC().Format(time.RFC3339Nano),
 		Attributes:   attrs,
 		Status:       span.Status().Code.String(),
 		StatusDesc:   span.Status().Description,

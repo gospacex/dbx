@@ -26,15 +26,8 @@ func Open(cfg config.DBConfig) (*gorm.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("dbsql: open: %w", err)
 	}
-	if p := cfg.GetPool(); p != nil {
-		sqlDB, err := db.DB()
-		if err != nil {
-			return nil, fmt.Errorf("dbsql: pool: %w", err)
-		}
-		sqlDB.SetMaxOpenConns(p.MaxOpenConns)
-		sqlDB.SetMaxIdleConns(p.MaxIdleConns)
-		sqlDB.SetConnMaxLifetime(p.ConnMaxLifetimeDuration())
-		sqlDB.SetConnMaxIdleTime(p.ConnMaxIdleTimeDuration())
+	if err := applyPool(db, cfg.GetPool()); err != nil {
+		return nil, fmt.Errorf("dbsql: pool: %w", err)
 	}
 	return db, nil
 }
@@ -58,15 +51,25 @@ func OpenPath(path string) (*gorm.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("dbsql: open: %w", err)
 	}
-	if p := cfg.GetPool(); p != nil {
-		sqlDB, err := db.DB()
-		if err != nil {
-			return nil, fmt.Errorf("dbsql: pool: %w", err)
-		}
-		sqlDB.SetMaxOpenConns(p.MaxOpenConns)
-		sqlDB.SetMaxIdleConns(p.MaxIdleConns)
-		sqlDB.SetConnMaxLifetime(p.ConnMaxLifetimeDuration())
-		sqlDB.SetConnMaxIdleTime(p.ConnMaxIdleTimeDuration())
+	if err := applyPool(db, cfg.GetPool()); err != nil {
+		return nil, fmt.Errorf("dbsql: pool: %w", err)
 	}
 	return db, nil
+}
+
+// applyPool applies connection pool settings to the underlying *sql.DB.
+// A nil pool leaves database/sql defaults in place.
+func applyPool(db *gorm.DB, p *config.PoolConfig) error {
+	if p == nil {
+		return nil
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		return err
+	}
+	sqlDB.SetMaxOpenConns(p.MaxOpenConns)
+	sqlDB.SetMaxIdleConns(p.MaxIdleConns)
+	sqlDB.SetConnMaxLifetime(p.ConnMaxLifetimeDuration())
+	sqlDB.SetConnMaxIdleTime(p.ConnMaxIdleTimeDuration())
+	return nil
 }

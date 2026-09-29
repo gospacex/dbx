@@ -11,6 +11,13 @@ type PoolConfig struct {
 }
 
 // Validate sets defaults and validates PoolConfig.
+//
+// Note: every field treats <= 0 as "unset" and replaces it with a default,
+// so the database/sql meaning of 0 (unlimited connections / no connection
+// expiry) cannot be expressed through this config. This is intentional:
+// the defaults (50 open / 10 idle / 30min lifetime / 10min idle) are the
+// supported production envelope. MaxIdleConns is additionally capped at
+// MaxOpenConns.
 func (p *PoolConfig) Validate() error {
 	if p.MaxOpenConns <= 0 {
 		p.MaxOpenConns = 50

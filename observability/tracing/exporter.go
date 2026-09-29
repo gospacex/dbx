@@ -35,10 +35,16 @@ func (e *MQXSpanExporter) ExportSpans(ctx context.Context, spans []sdktrace.Read
 	}
 }
 
-// Shutdown shuts down the underlying jaeger exporter if present.
-// Kafka and Redis exporters delegate lifecycle management to mqx.
+// Shutdown flushes the kafka producer and shuts down the jaeger exporter,
+// whichever are present. Redis delegates lifecycle management to mqx, and
+// closing the kafka producer itself remains mqx's responsibility.
 func (e *MQXSpanExporter) Shutdown(ctx context.Context) error {
-	if e.jaeger != nil {
+	switch {
+	case e.kafka != nil:
+		return e.kafka.Shutdown(ctx)
+	case e.redis != nil:
+		return e.redis.Shutdown(ctx)
+	case e.jaeger != nil:
 		return e.jaeger.Shutdown(ctx)
 	}
 	return nil

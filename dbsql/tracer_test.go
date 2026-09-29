@@ -96,37 +96,6 @@ func TestExtractTracingAndApply_Enabled_RedisStream(t *testing.T) {
 	// Result is environment-dependent; just ensure the call doesn't panic.
 }
 
-func TestKafkaConfigFromTracing(t *testing.T) {
-	tc := &config.TracingConfig{
-		Endpoint: "broker1:9092,broker2:9092",
-		Topic:    "my-traces",
-	}
-	brokers, topic := dbsql.KafkaConfigFromTracing(tc)
-	if len(brokers) != 2 {
-		t.Fatalf("expected 2 brokers, got %d", len(brokers))
-	}
-	if brokers[0] != "broker1:9092" {
-		t.Errorf("broker[0] = %q, want broker1:9092", brokers[0])
-	}
-	if topic != "my-traces" {
-		t.Errorf("topic = %q, want my-traces", topic)
-	}
-}
-
-func TestRedisConfigFromTracing(t *testing.T) {
-	tc := &config.TracingConfig{
-		Endpoint:      "localhost:6379",
-		RedisPassword: "secret",
-	}
-	addr, password := dbsql.RedisConfigFromTracing(tc)
-	if addr != "localhost:6379" {
-		t.Errorf("addr = %q, want localhost:6379", addr)
-	}
-	if password != "secret" {
-		t.Errorf("password = %q, want secret", password)
-	}
-}
-
 // TestCreateExporter_Jaeger_PlainHTTP is the regression test for the
 // "CRUD SQL not reaching Jaeger" bug. The otlptracehttp client defaults
 // to TLS; if the exporter is built without WithInsecure(), the

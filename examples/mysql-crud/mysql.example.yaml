@@ -1,9 +1,10 @@
 # Single MySQL configuration for `go run . o` (hardcoded) and `go run . p` (yaml).
 # Replace REPLACE_ME with the real password before running.
 #
-# The 4 sections (mysql / pool / trace / logger) are exhaustive for this example.
-# `trace:` uses mqx-standard field names; the example translates them
-# to dbx internal config.TracingConfig at startup.
+# NOTE: this example is a standalone module owning its own YAML loader
+# (loader.go). It does NOT use dbsql.OpenPath, so the section names below
+# are the example's mqx-style schema (top-level `pool:` / `trace:`), NOT the
+# dbx file schema - see the root README for the keys dbsql.OpenPath expects.
 
 mysql:
   host: 127.0.0.1
@@ -22,7 +23,6 @@ pool:
 # Trace config aligned with mqx standard:
 #   - section name: trace (NOT tracing)
 #   - service_name (NOT service)
-#   - protocol: http (mapped internally to http/protobuf)
 #   - sampler_type: always_on (mapped internally to parentbased_always_on)
 #   - mode: single (mqx standard; drives redisx.POS vs redisx.POC; kafka
 #     ignores it because kafkax.POS handles multi-broker via Addrs)
@@ -31,7 +31,6 @@ trace:
   # service_name: mysql-crud-example
   # exporter: jaeger # one of: jaeger / kafka / redis_stream
   # endpoint: localhost:4318
-  # protocol: http
   # sampler_type: always_on
   # sampler_ratio: 1.0
   # mode: single # single (default) | cluster (only meaningful for redis_stream)

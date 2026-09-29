@@ -35,7 +35,6 @@ trace:
   service_name: mysql-crud-example
   exporter: jaeger
   endpoint: localhost:4318
-  protocol: http
   sampler_type: always_on
   sampler_ratio: 1.0
   mode: single

@@ -31,8 +31,13 @@ func (p *Provider) Build(instanceName string, cfg map[string]any) (hubx.Client, 
 		return nil, fmt.Errorf("%w: dbx.sqlite/%s: missing 'config' key", hubx.ErrConfigInvalid, instanceName)
 	}
 	var c Config
+	// See the note in hubx/mysqlx: without this hook a duration string is a
+	// decode error and a bare integer lands as nanoseconds.
 	dec, _ := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
-		TagName: "yaml", ErrorUnused: true, Result: &c,
+		TagName:     "yaml",
+		ErrorUnused: true,
+		DecodeHook:  mapstructure.StringToTimeDurationHookFunc(),
+		Result:      &c,
 	})
 	if err := dec.Decode(raw); err != nil {
 		return nil, fmt.Errorf("%w: dbx.sqlite/%s: %v", hubx.ErrConfigInvalid, instanceName, err)
@@ -50,15 +55,17 @@ func (p *Provider) Build(instanceName string, cfg map[string]any) (hubx.Client, 
 	if c.MaxIdleConns > 0 {
 		db.SetMaxIdleConns(c.MaxIdleConns)
 	}
-	return &client{db: db, driver: "sqlite"}, nil
+	if c.ConnMaxLifetime > 0 {
+		db.SetConnMaxLifetime(c.ConnMaxLifetime)
+	}
+	return &client{db: db}, nil
 }
 
 func (p *Provider) HealthCheck(context.Context) error { return nil }
 func (p *Provider) Close() error                      { return nil }
 
 type client struct {
-	db     *sql.DB
-	driver string
+	db *sql.DB
 }
 
 func (c *client) HealthCheck(ctx context.Context) error { return c.db.PingContext(ctx) }

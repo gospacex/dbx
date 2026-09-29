@@ -82,11 +82,13 @@ go test -count=1 -race ./orm/... ./dbsql/...
 |----|------|
 | `mysql:` | `host` / `port` / `username` / `password` / `database` / `charset` |
 | `pool:`  | `max_open_conns` / `max_idle_conns` / `conn_max_lifetime` / `conn_max_idle_time` |
-| `trace:` | `enabled` / `service_name` / `exporter` / `endpoint` / `protocol` / `sampler_type` / `sampler_ratio` |
+| `trace:` | `enabled` / `service_name` / `exporter` / `endpoint` / `sampler_type` / `sampler_ratio` / `mode` / `topic` / `stream` |
 | `logger:` | `level` / `color` / `slow_threshold_ms` / `ignore_record_not_found` |
 
-> `trace:` 段字段名与 mqx 标准对齐（`service_name` / `protocol: http` / `sampler_type: always_on`），
+> `trace:` 段字段名与 mqx 标准对齐（`service_name` / `sampler_type: always_on`），
 > 内部通过 `mqxTraceToDBX` 翻译到 dbx 内部 `config.TracingConfig`。
+> OTLP 传输方式不由此处配置——dbx 依据 endpoint 的 scheme 决定
+> （`host:port` 与 `http://` → 明文 HTTP，`https://` → TLS）。
 
 `cluster.example.yaml` 与上同构，仅顶层段为 `cluster:`（含 `sources:` / `replicas:` / `load_balance`）。
 
@@ -102,7 +104,6 @@ trace:
   service_name: mysql-crud-example
   exporter: jaeger
   endpoint: localhost:4318
-  protocol: http
   sampler_type: always_on
   sampler_ratio: 1.0
 ```

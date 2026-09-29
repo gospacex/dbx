@@ -4,7 +4,8 @@
 // E2E tests against real services running via /Users/hyx/work/gowork/src/lego/tutorial/docker-compose.yml.
 // Run with: go test -tags e2e -count=1 -timeout 60s ./e2e/...
 //
-// Required services (host:port):
+// Default endpoints (override any of them with the DBX_E2E_* variables
+// documented in endpoints_test.go):
 //   - MySQL    127.0.0.1:3306 (root:rootpass, db=testdb)
 //   - Postgres 127.0.0.1:5432 (postgres:postgres, db=postgres)
 //   - Redis    127.0.0.1:6379 (password=redis123456)
@@ -14,6 +15,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -24,10 +26,29 @@ import (
 	"gorm.io/gorm"
 )
 
-const (
-	mysqlDSN = "root:rootpass@tcp(127.0.0.1:3306)/testdb?charset=utf8mb4&parseTime=True&loc=Local"
-	pgDSN    = "host=127.0.0.1 port=5432 user=postgres password=postgres dbname=postgres sslmode=disable"
-)
+// mysqlNetwork returns the MySQL network config resolved from the environment.
+func mysqlNetwork() config.CommonNetworkConfig {
+	e := mysqlEndpoint()
+	return config.CommonNetworkConfig{
+		Host:     e.Host,
+		Port:     e.Port,
+		Username: e.Username,
+		Password: e.Password,
+		Database: e.Database,
+	}
+}
+
+// pgNetwork returns the Postgres network config resolved from the environment.
+func pgNetwork() config.CommonNetworkConfig {
+	e := pgEndpoint()
+	return config.CommonNetworkConfig{
+		Host:     e.Host,
+		Port:     e.Port,
+		Username: e.Username,
+		Password: e.Password,
+		Database: e.Database,
+	}
+}
 
 // product is a tiny table used by the CRUD tests. Each driver-compatible column type
 // is exercised; the schema is intentionally minimal so it works on both MySQL and Postgres.
@@ -60,9 +81,7 @@ func withTable(t *testing.T, db *gorm.DB, fn func()) {
 func TestE2E_MySQL_Open_CRUD(t *testing.T) {
 	cfg := &config.MySQLConfig{
 		BaseDBConfig: config.BaseDBConfig{
-			CommonNetworkConfig: config.CommonNetworkConfig{
-				Host: "127.0.0.1", Port: 3306, Username: "root", Password: "rootpass", Database: "testdb",
-			},
+			CommonNetworkConfig: mysqlNetwork(),
 		},
 	}
 	db, err := dbsql.Open(cfg)
@@ -89,14 +108,16 @@ func TestE2E_MySQL_Open_CRUD(t *testing.T) {
 func TestE2E_MySQL_OpenPath_CRUD(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "mysql.yaml")
-	if err := os.WriteFile(path, []byte(`
+	e := mysqlEndpoint()
+	mysqlYAML := fmt.Sprintf(`
 mysql:
-  host: 127.0.0.1
-  port: 3306
-  username: root
-  password: rootpass
-  database: testdb
-`), 0644); err != nil {
+  host: %s
+  port: %d
+  username: %s
+  password: %s
+  database: %s
+`, e.Host, e.Port, e.Username, e.Password, e.Database)
+	if err := os.WriteFile(path, []byte(mysqlYAML), 0644); err != nil {
 		t.Fatal(err)
 	}
 	db, err := dbsql.OpenPath(path)
@@ -121,10 +142,8 @@ mysql:
 func TestE2E_MySQL_PoolApply(t *testing.T) {
 	cfg := &config.MySQLConfig{
 		BaseDBConfig: config.BaseDBConfig{
-			CommonNetworkConfig: config.CommonNetworkConfig{
-				Host: "127.0.0.1", Port: 3306, Username: "root", Password: "rootpass", Database: "testdb",
-			},
-			Pool: &config.PoolConfig{MaxOpenConns: 3, MaxIdleConns: 1},
+			CommonNetworkConfig: mysqlNetwork(),
+			Pool:                &config.PoolConfig{MaxOpenConns: 3, MaxIdleConns: 1},
 		},
 	}
 	db, err := dbsql.Open(cfg)
@@ -144,12 +163,7 @@ func TestE2E_MySQL_PoolApply(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestE2E_Postgres_Open_CRUD(t *testing.T) {
-	cfg := &config.PostgresConfig{}
-	cfg.Host = "127.0.0.1"
-	cfg.Port = 5432
-	cfg.Username = "postgres"
-	cfg.Password = "postgres"
-	cfg.Database = "postgres"
+	cfg := &config.PostgresConfig{BaseDBConfig: config.BaseDBConfig{CommonNetworkConfig: pgNetwork()}}
 
 	db, err := dbsql.Open(cfg)
 	if err != nil {
@@ -180,8 +194,9 @@ func TestE2E_Postgres_Open_CRUD(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestE2E_Cluster_MySQL_WriteReadSplit(t *testing.T) {
+	e := mysqlEndpoint()
 	node := config.NodeConfig{
-		Host: "127.0.0.1", Port: 3306, Username: "root", Password: "rootpass", Database: "testdb",
+		Host: e.Host, Port: e.Port, Username: e.Username, Password: e.Password, Database: e.Database,
 	}
 	cc := &config.ClusterConfig{
 		Driver:      "mysql",
@@ -212,8 +227,9 @@ func TestE2E_Cluster_MySQL_WriteReadSplit(t *testing.T) {
 }
 
 func TestE2E_Cluster_Postgres_WriteReadSplit(t *testing.T) {
+	e := pgEndpoint()
 	node := config.NodeConfig{
-		Host: "127.0.0.1", Port: 5432, Username: "postgres", Password: "postgres", Database: "postgres",
+		Host: e.Host, Port: e.Port, Username: e.Username, Password: e.Password, Database: e.Database,
 	}
 	cc := &config.ClusterConfig{
 		Driver:      "postgres",
@@ -254,7 +270,7 @@ func TestE2E_Tracing_Jaeger(t *testing.T) {
 	tc := &config.TracingConfig{
 		Enabled:  true,
 		Exporter: config.ExporterJaeger,
-		Endpoint: "127.0.0.1:4318",
+		Endpoint: jaegerOTLPEndpoint(),
 	}
 	if err := tc.Validate(); err != nil {
 		t.Fatalf("Validate error: %v", err)

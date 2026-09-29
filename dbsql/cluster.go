@@ -79,15 +79,8 @@ func OpenCluster(cc *config.ClusterConfig) (*gorm.DB, error) {
 	}
 
 	// Apply pool settings.
-	if cc.Pool != nil {
-		sqlDB, err := db.DB()
-		if err != nil {
-			return nil, fmt.Errorf("dbsql: cluster: pool: %w", err)
-		}
-		sqlDB.SetMaxOpenConns(cc.Pool.MaxOpenConns)
-		sqlDB.SetMaxIdleConns(cc.Pool.MaxIdleConns)
-		sqlDB.SetConnMaxLifetime(cc.Pool.ConnMaxLifetimeDuration())
-		sqlDB.SetConnMaxIdleTime(cc.Pool.ConnMaxIdleTimeDuration())
+	if err := applyPool(db, cc.Pool); err != nil {
+		return nil, fmt.Errorf("dbsql: cluster: pool: %w", err)
 	}
 
 	// Apply tracing.

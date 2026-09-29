@@ -10,10 +10,12 @@ import (
 )
 
 type fakeKafkaProducer struct {
-	calls    int
-	produce  func(msg *kafka.Message) error
-	gotTopic string
-	gotValue []byte
+	calls          int
+	flushes        int
+	flushRemaining int
+	produce        func(msg *kafka.Message) error
+	gotTopic       string
+	gotValue       []byte
 }
 
 func (f *fakeKafkaProducer) Produce(msg *kafka.Message, _ chan kafka.Event) error {
@@ -29,6 +31,11 @@ func (f *fakeKafkaProducer) Produce(msg *kafka.Message, _ chan kafka.Event) erro
 	f.gotTopic = *msg.TopicPartition.Topic
 	f.gotValue = msg.Value
 	return nil
+}
+
+func (f *fakeKafkaProducer) Flush(_ int) int {
+	f.flushes++
+	return f.flushRemaining
 }
 
 func TestKafkaExporter_ExportSpans_Success(t *testing.T) {
@@ -73,5 +80,24 @@ func TestKafkaExporter_ExportSpans_EmptySpans(t *testing.T) {
 	}
 	if prod.calls != 0 {
 		t.Errorf("Produce should not be called for empty spans, got %d", prod.calls)
+	}
+}
+
+func TestKafkaExporter_Shutdown_Flushes(t *testing.T) {
+	prod := &fakeKafkaProducer{}
+	exp := &KafkaExporter{producer: prod, topic: "traces"}
+	if err := exp.Shutdown(context.Background()); err != nil {
+		t.Fatalf("Shutdown() error: %v", err)
+	}
+	if prod.flushes != 1 {
+		t.Errorf("Flush calls = %d, want 1", prod.flushes)
+	}
+}
+
+func TestKafkaExporter_Shutdown_FlushIncomplete(t *testing.T) {
+	prod := &fakeKafkaProducer{flushRemaining: 2}
+	exp := &KafkaExporter{producer: prod, topic: "traces"}
+	if err := exp.Shutdown(context.Background()); err == nil {
+		t.Fatal("expected error when messages remain in queue")
 	}
 }

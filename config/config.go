@@ -3,11 +3,10 @@ package config
 
 import "fmt"
 
-// PoolConfig holds connection pool settings.
-// Fields are defined in pool.go.
-// TracingConfig holds tracing/export settings.
-// Fields are defined in tracing.go.
-
+// PoolConfig holds connection pool settings (fields are defined in pool.go).
+// TracingConfig holds tracing/export settings (fields are defined in
+// tracing.go).
+//
 // DBConfig is the unified interface for all 8 database config types.
 type DBConfig interface {
 	DriverName() string
@@ -34,11 +33,11 @@ func (c *CommonNetworkConfig) DSN() string {
 // BaseDBConfig embeds CommonNetworkConfig, PoolConfig, and TracingConfig.
 type BaseDBConfig struct {
 	CommonNetworkConfig `yaml:",inline" json:",inline" toml:",inline"`
-	Pool     *PoolConfig    `yaml:"pool,omitempty" json:"pool,omitempty" toml:"pool,omitempty"`
-	Tracing  *TracingConfig `yaml:"tracing,omitempty" json:"tracing,omitempty" toml:"tracing,omitempty"`
+	Pool                *PoolConfig    `yaml:"pool,omitempty" json:"pool,omitempty" toml:"pool,omitempty"`
+	Tracing             *TracingConfig `yaml:"tracing,omitempty" json:"tracing,omitempty" toml:"tracing,omitempty"`
 }
 
-func (b *BaseDBConfig) GetPool() *PoolConfig      { return b.Pool }
+func (b *BaseDBConfig) GetPool() *PoolConfig       { return b.Pool }
 func (b *BaseDBConfig) GetTracing() *TracingConfig { return b.Tracing }
 
 // DSN builds a default MySQL-style DSN from CommonNetworkConfig.

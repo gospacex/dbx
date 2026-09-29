@@ -1,0 +1,25 @@
+# ============================================================
+# sqlite-configx 示例配置文件
+# 演示 dbsql.OpenFromConfigx 按 xmiddleware.sqlx 契约读取配置并建连。
+# 字段命名与 configx/configs/config.simple.yaml 保持一致，可直接平移到
+# MySQL / Postgres：只需替换 dsn（dialect 缺省时会从 DSN 自动推断）。
+# ============================================================
+
+# ===== x 系列中间件配置 =====
+xmiddleware:
+
+  # ----- sqlx（SQL 数据库）-----
+  sqlx:
+    driver: gorm # 当前仅实现 gorm；xorm / sqlx 为保留位
+    databases:
+      default:
+        dsn: "./demo.db" # sqlite 文件路径；运行后会在当前目录生成 demo.db
+        dialect: sqlite # 可选：缺省时从 DSN 推断（"@tcp(" → mysql、"host=" → postgres、其余 → sqlite）
+        max_open_conns: 10
+        max_idle_conns: 2
+        conn_max_lifetime: 5m # time.ParseDuration 格式，缺省 = 不限制
+        conn_max_idle_time: 3m
+        slow_threshold: 100ms # 超过该耗时的查询以 warn 级别标记为慢查询
+        enable_log: true # 开启 logx 后端的 GORM logger（db.statement 字段携带 SQL）
+        log_level: info # silent | error | warn | info，缺省 warn
+        enable_trace: false # 开启后 SQL 语句进入 OTel 调用链（需全局 TracerProvider）

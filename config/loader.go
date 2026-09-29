@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -24,184 +25,136 @@ type fileWrapper struct {
 	Tracing  *TracingConfig  `yaml:"tracing" json:"tracing" toml:"tracing"`
 }
 
-// LoadMySQL loads a MySQL config from a YAML/JSON/TOML file.
-func LoadMySQL(path string) (*MySQLConfig, *TracingConfig, error) {
+// validator is the only contract loadSection needs from a config section.
+type validator interface {
+	Validate() error
+}
+
+// loadSection decodes path into fileWrapper, extracts one section with pick,
+// and validates the section plus the optional tracing section. pick must
+// return a typed nil pointer when the section is absent.
+func loadSection[T validator](path, section string, pick func(*fileWrapper) T) (T, *TracingConfig, error) {
+	var zero T
 	w := &fileWrapper{}
 	if err := loadFile(path, w); err != nil {
-		return nil, nil, err
+		return zero, nil, err
 	}
-	if w.MySQL == nil {
-		return nil, nil, fmt.Errorf("loader: missing mysql section in %s", path)
+	cfg := pick(w)
+	if isNilPtr(cfg) {
+		return zero, nil, fmt.Errorf("loader: missing %s section in %s", section, path)
 	}
-	if err := w.MySQL.Validate(); err != nil {
-		return nil, nil, err
+	if err := cfg.Validate(); err != nil {
+		return zero, nil, err
 	}
-	if w.Tracing != nil {
-		if err := w.Tracing.Validate(); err != nil {
-			return nil, nil, err
-		}
+	if err := validateTracing(w.Tracing); err != nil {
+		return zero, nil, err
 	}
-	return w.MySQL, w.Tracing, nil
+	return cfg, w.Tracing, nil
+}
+
+func validateTracing(tc *TracingConfig) error {
+	if tc != nil {
+		return tc.Validate()
+	}
+	return nil
+}
+
+// driverSection registers one driver's filename aliases, its LoadXxx
+// entrypoint, and a section picker for Load's content-based fallback.
+// Adding a driver means adding one entry here plus one public LoadXxx func.
+type driverSection struct {
+	name    string
+	aliases []string
+	load    func(path string) (DBConfig, *TracingConfig, error)
+	pick    func(w *fileWrapper) DBConfig
+}
+
+// dbConfigOrNil converts a typed nil *XxxConfig to a nil DBConfig so
+// pickers can be tested with a plain == nil.
+func dbConfigOrNil[T DBConfig](c T) DBConfig {
+	if isNilPtr(c) {
+		return nil
+	}
+	return c
+}
+
+// isNilPtr reports whether v is a typed nil pointer. A typed nil stored in
+// an interface is not == nil, hence the reflection. All config types in
+// this package are pointer-based, so IsNil never panics here.
+func isNilPtr[T any](v T) bool {
+	return reflect.ValueOf(v).IsNil()
+}
+
+var driverSections = []driverSection{
+	{"mysql", nil,
+		func(p string) (DBConfig, *TracingConfig, error) { return LoadMySQL(p) },
+		func(w *fileWrapper) DBConfig { return dbConfigOrNil(w.MySQL) }},
+	{"postgres", []string{"postgresql"},
+		func(p string) (DBConfig, *TracingConfig, error) { return LoadPostgres(p) },
+		func(w *fileWrapper) DBConfig { return dbConfigOrNil(w.Postgres) }},
+	{"tidb", nil,
+		func(p string) (DBConfig, *TracingConfig, error) { return LoadTiDB(p) },
+		func(w *fileWrapper) DBConfig { return dbConfigOrNil(w.TiDB) }},
+	{"mariadb", nil,
+		func(p string) (DBConfig, *TracingConfig, error) { return LoadMariaDB(p) },
+		func(w *fileWrapper) DBConfig { return dbConfigOrNil(w.MariaDB) }},
+	{"gaussdb", nil,
+		func(p string) (DBConfig, *TracingConfig, error) { return LoadGaussDB(p) },
+		func(w *fileWrapper) DBConfig { return dbConfigOrNil(w.GaussDB) }},
+	{"mssql", nil,
+		func(p string) (DBConfig, *TracingConfig, error) { return LoadMSSQL(p) },
+		func(w *fileWrapper) DBConfig { return dbConfigOrNil(w.MSSQL) }},
+	{"oracle", nil,
+		func(p string) (DBConfig, *TracingConfig, error) { return LoadOracle(p) },
+		func(w *fileWrapper) DBConfig { return dbConfigOrNil(w.Oracle) }},
+	{"sqlite", nil,
+		func(p string) (DBConfig, *TracingConfig, error) { return LoadSQLite(p) },
+		func(w *fileWrapper) DBConfig { return dbConfigOrNil(w.SQLite) }},
+}
+
+// LoadMySQL loads a MySQL config from a YAML/JSON/TOML file.
+func LoadMySQL(path string) (*MySQLConfig, *TracingConfig, error) {
+	return loadSection(path, "mysql", func(w *fileWrapper) *MySQLConfig { return w.MySQL })
 }
 
 // LoadPostgres loads a Postgres config from a file.
 func LoadPostgres(path string) (*PostgresConfig, *TracingConfig, error) {
-	w := &fileWrapper{}
-	if err := loadFile(path, w); err != nil {
-		return nil, nil, err
-	}
-	if w.Postgres == nil {
-		return nil, nil, fmt.Errorf("loader: missing postgres section in %s", path)
-	}
-	if err := w.Postgres.Validate(); err != nil {
-		return nil, nil, err
-	}
-	if w.Tracing != nil {
-		if err := w.Tracing.Validate(); err != nil {
-			return nil, nil, err
-		}
-	}
-	return w.Postgres, w.Tracing, nil
+	return loadSection(path, "postgres", func(w *fileWrapper) *PostgresConfig { return w.Postgres })
 }
 
 // LoadTiDB loads a TiDB config from a file.
 func LoadTiDB(path string) (*TiDBConfig, *TracingConfig, error) {
-	w := &fileWrapper{}
-	if err := loadFile(path, w); err != nil {
-		return nil, nil, err
-	}
-	if w.TiDB == nil {
-		return nil, nil, fmt.Errorf("loader: missing tidb section in %s", path)
-	}
-	if err := w.TiDB.Validate(); err != nil {
-		return nil, nil, err
-	}
-	if w.Tracing != nil {
-		if err := w.Tracing.Validate(); err != nil {
-			return nil, nil, err
-		}
-	}
-	return w.TiDB, w.Tracing, nil
+	return loadSection(path, "tidb", func(w *fileWrapper) *TiDBConfig { return w.TiDB })
 }
 
 // LoadMariaDB loads a MariaDB config from a file.
 func LoadMariaDB(path string) (*MariaDBConfig, *TracingConfig, error) {
-	w := &fileWrapper{}
-	if err := loadFile(path, w); err != nil {
-		return nil, nil, err
-	}
-	if w.MariaDB == nil {
-		return nil, nil, fmt.Errorf("loader: missing mariadb section in %s", path)
-	}
-	if err := w.MariaDB.Validate(); err != nil {
-		return nil, nil, err
-	}
-	if w.Tracing != nil {
-		if err := w.Tracing.Validate(); err != nil {
-			return nil, nil, err
-		}
-	}
-	return w.MariaDB, w.Tracing, nil
+	return loadSection(path, "mariadb", func(w *fileWrapper) *MariaDBConfig { return w.MariaDB })
 }
 
 // LoadGaussDB loads a GaussDB config from a file.
 func LoadGaussDB(path string) (*GaussDBConfig, *TracingConfig, error) {
-	w := &fileWrapper{}
-	if err := loadFile(path, w); err != nil {
-		return nil, nil, err
-	}
-	if w.GaussDB == nil {
-		return nil, nil, fmt.Errorf("loader: missing gaussdb section in %s", path)
-	}
-	if err := w.GaussDB.Validate(); err != nil {
-		return nil, nil, err
-	}
-	if w.Tracing != nil {
-		if err := w.Tracing.Validate(); err != nil {
-			return nil, nil, err
-		}
-	}
-	return w.GaussDB, w.Tracing, nil
+	return loadSection(path, "gaussdb", func(w *fileWrapper) *GaussDBConfig { return w.GaussDB })
 }
 
 // LoadMSSQL loads a MSSQL config from a file.
 func LoadMSSQL(path string) (*MSSQLConfig, *TracingConfig, error) {
-	w := &fileWrapper{}
-	if err := loadFile(path, w); err != nil {
-		return nil, nil, err
-	}
-	if w.MSSQL == nil {
-		return nil, nil, fmt.Errorf("loader: missing mssql section in %s", path)
-	}
-	if err := w.MSSQL.Validate(); err != nil {
-		return nil, nil, err
-	}
-	if w.Tracing != nil {
-		if err := w.Tracing.Validate(); err != nil {
-			return nil, nil, err
-		}
-	}
-	return w.MSSQL, w.Tracing, nil
+	return loadSection(path, "mssql", func(w *fileWrapper) *MSSQLConfig { return w.MSSQL })
 }
 
 // LoadOracle loads an Oracle config from a file.
 func LoadOracle(path string) (*OracleConfig, *TracingConfig, error) {
-	w := &fileWrapper{}
-	if err := loadFile(path, w); err != nil {
-		return nil, nil, err
-	}
-	if w.Oracle == nil {
-		return nil, nil, fmt.Errorf("loader: missing oracle section in %s", path)
-	}
-	if err := w.Oracle.Validate(); err != nil {
-		return nil, nil, err
-	}
-	if w.Tracing != nil {
-		if err := w.Tracing.Validate(); err != nil {
-			return nil, nil, err
-		}
-	}
-	return w.Oracle, w.Tracing, nil
+	return loadSection(path, "oracle", func(w *fileWrapper) *OracleConfig { return w.Oracle })
 }
 
 // LoadSQLite loads a SQLite config from a file.
 func LoadSQLite(path string) (*SQLiteConfig, *TracingConfig, error) {
-	w := &fileWrapper{}
-	if err := loadFile(path, w); err != nil {
-		return nil, nil, err
-	}
-	if w.SQLite == nil {
-		return nil, nil, fmt.Errorf("loader: missing sqlite section in %s", path)
-	}
-	if err := w.SQLite.Validate(); err != nil {
-		return nil, nil, err
-	}
-	if w.Tracing != nil {
-		if err := w.Tracing.Validate(); err != nil {
-			return nil, nil, err
-		}
-	}
-	return w.SQLite, w.Tracing, nil
+	return loadSection(path, "sqlite", func(w *fileWrapper) *SQLiteConfig { return w.SQLite })
 }
 
 // LoadCluster loads a ClusterConfig from a file.
 func LoadCluster(path string) (*ClusterConfig, *TracingConfig, error) {
-	w := &fileWrapper{}
-	if err := loadFile(path, w); err != nil {
-		return nil, nil, err
-	}
-	if w.Cluster == nil {
-		return nil, nil, fmt.Errorf("loader: missing cluster section in %s", path)
-	}
-	if err := w.Cluster.Validate(); err != nil {
-		return nil, nil, err
-	}
-	if w.Tracing != nil {
-		if err := w.Tracing.Validate(); err != nil {
-			return nil, nil, err
-		}
-	}
-	return w.Cluster, w.Tracing, nil
+	return loadSection(path, "cluster", func(w *fileWrapper) *ClusterConfig { return w.Cluster })
 }
 
 // Load auto-detects format based on file basename and returns a DBConfig.
@@ -210,77 +163,37 @@ func LoadCluster(path string) (*ClusterConfig, *TracingConfig, error) {
 // regardless of filename).
 func Load(path string) (DBConfig, *TracingConfig, error) {
 	name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-	switch name {
-	case "mysql":
-		return LoadMySQL(path)
-	case "postgres", "postgresql":
-		return LoadPostgres(path)
-	case "tidb":
-		return LoadTiDB(path)
-	case "mariadb":
-		return LoadMariaDB(path)
-	case "gaussdb":
-		return LoadGaussDB(path)
-	case "mssql":
-		return LoadMSSQL(path)
-	case "oracle":
-		return LoadOracle(path)
-	case "sqlite":
-		return LoadSQLite(path)
+	for _, d := range driverSections {
+		if d.name == name || contains(d.aliases, name) {
+			return d.load(path)
+		}
 	}
 	// Filename didn't match; dispatch by populated section.
 	w := &fileWrapper{}
 	if err := loadFile(path, w); err != nil {
 		return nil, nil, err
 	}
-	if w.Tracing != nil {
-		if err := w.Tracing.Validate(); err != nil {
-			return nil, nil, err
-		}
+	if err := validateTracing(w.Tracing); err != nil {
+		return nil, nil, err
 	}
-	switch {
-	case w.MySQL != nil:
-		if err := w.MySQL.Validate(); err != nil {
-			return nil, nil, err
+	for _, d := range driverSections {
+		if cfg := d.pick(w); cfg != nil {
+			if err := cfg.Validate(); err != nil {
+				return nil, nil, err
+			}
+			return cfg, w.Tracing, nil
 		}
-		return w.MySQL, w.Tracing, nil
-	case w.Postgres != nil:
-		if err := w.Postgres.Validate(); err != nil {
-			return nil, nil, err
-		}
-		return w.Postgres, w.Tracing, nil
-	case w.TiDB != nil:
-		if err := w.TiDB.Validate(); err != nil {
-			return nil, nil, err
-		}
-		return w.TiDB, w.Tracing, nil
-	case w.MariaDB != nil:
-		if err := w.MariaDB.Validate(); err != nil {
-			return nil, nil, err
-		}
-		return w.MariaDB, w.Tracing, nil
-	case w.GaussDB != nil:
-		if err := w.GaussDB.Validate(); err != nil {
-			return nil, nil, err
-		}
-		return w.GaussDB, w.Tracing, nil
-	case w.MSSQL != nil:
-		if err := w.MSSQL.Validate(); err != nil {
-			return nil, nil, err
-		}
-		return w.MSSQL, w.Tracing, nil
-	case w.Oracle != nil:
-		if err := w.Oracle.Validate(); err != nil {
-			return nil, nil, err
-		}
-		return w.Oracle, w.Tracing, nil
-	case w.SQLite != nil:
-		if err := w.SQLite.Validate(); err != nil {
-			return nil, nil, err
-		}
-		return w.SQLite, w.Tracing, nil
 	}
 	return nil, nil, fmt.Errorf("loader: no driver section found in %s", path)
+}
+
+func contains(ss []string, s string) bool {
+	for _, v := range ss {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
 
 func loadFile(path string, out interface{}) error {

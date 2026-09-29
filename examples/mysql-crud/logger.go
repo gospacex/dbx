@@ -17,10 +17,10 @@ import (
 //   - ANSI color toggle (auto-disabled when NO_COLOR=1)
 //   - short-circuiting SQL output entirely when level=silent
 type consoleLogger struct {
-	level                  logger.LogLevel
-	color                  bool
-	slowThreshold          time.Duration
-	ignoreRecordNotFound   bool
+	level                logger.LogLevel
+	color                bool
+	slowThreshold        time.Duration
+	ignoreRecordNotFound bool
 }
 
 // newConsoleLogger builds a consoleLogger from the yaml-shaped config.

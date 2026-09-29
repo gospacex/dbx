@@ -9,8 +9,8 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 )
 
@@ -18,12 +18,11 @@ import (
 // match the mqx standard so users can copy-paste trace blocks from any
 // mqx-based service without rewriting the schema.
 type mqxTraceConfig struct {
-	Enabled     bool    `yaml:"enabled" json:"enabled"`
-	ServiceName string  `yaml:"service_name" json:"service_name"`
-	Exporter    string  `yaml:"exporter" json:"exporter"`
-	Endpoint    string  `yaml:"endpoint" json:"endpoint"`
-	Protocol    string  `yaml:"protocol" json:"protocol"`
-	SamplerType string  `yaml:"sampler_type" json:"sampler_type"`
+	Enabled      bool    `yaml:"enabled" json:"enabled"`
+	ServiceName  string  `yaml:"service_name" json:"service_name"`
+	Exporter     string  `yaml:"exporter" json:"exporter"`
+	Endpoint     string  `yaml:"endpoint" json:"endpoint"`
+	SamplerType  string  `yaml:"sampler_type" json:"sampler_type"`
 	SamplerRatio float64 `yaml:"sampler_ratio" json:"sampler_ratio"`
 	// Mode is mqx standard: single | cluster. Drives redisx.POS vs
 	// redisx.POC. Kafka ignores it (kafkax.POS handles multi-broker
@@ -31,18 +30,15 @@ type mqxTraceConfig struct {
 	Mode string `yaml:"mode,omitempty" json:"mode,omitempty"`
 
 	// Kafka-specific
-	Topic                string `yaml:"topic,omitempty" json:"topic,omitempty"`
-	KafkaUsername        string `yaml:"kafka_username,omitempty" json:"kafka_username,omitempty"`
-	KafkaPassword        string `yaml:"kafka_password,omitempty" json:"kafka_password,omitempty"`
+	Topic                 string `yaml:"topic,omitempty" json:"topic,omitempty"`
+	KafkaUsername         string `yaml:"kafka_username,omitempty" json:"kafka_username,omitempty"`
+	KafkaPassword         string `yaml:"kafka_password,omitempty" json:"kafka_password,omitempty"`
 	KafkaSecurityProtocol string `yaml:"kafka_security_protocol,omitempty" json:"kafka_security_protocol,omitempty"`
-	KafkaSASLMechanism   string `yaml:"kafka_sasl_mechanism,omitempty" json:"kafka_sasl_mechanism,omitempty"`
+	KafkaSASLMechanism    string `yaml:"kafka_sasl_mechanism,omitempty" json:"kafka_sasl_mechanism,omitempty"`
 
 	// Redis-specific
 	Stream        string `yaml:"stream,omitempty" json:"stream,omitempty"`
 	RedisPassword string `yaml:"redis_password,omitempty" json:"redis_password,omitempty"`
-
-	// Optional OTLP headers
-	Headers map[string]string `yaml:"headers,omitempty" json:"headers,omitempty"`
 }
 
 // mqxTraceToDBX converts the mqx-style trace config into the internal
@@ -53,45 +49,36 @@ type mqxTraceConfig struct {
 //	mqx yaml              dbx internal
 //	-----------           --------------
 //	service_name     →   Service
-//	protocol: http   →   Protocol: "http/protobuf"
 //	sampler_type:    →   SamplerType: "parentbased_<x>"
 //	    always_on           parentbased_always_on
 //	    always_off          parentbased_always_off
 //	    traceidratio        parentbased_traceidratio
 //	mode:            →   Mode (single|cluster, validated in dbx)
 //	topic / stream / kafka_* / redis_*   →   verbatim
+//
+// Note: the OTLP transport is NOT configured here. dbx picks the scheme
+// from the endpoint itself ("host:port" and "http://" → plain HTTP,
+// "https://" → TLS), see dbsql.newJaegerHTTPExporter.
 func mqxTraceToDBX(m *mqxTraceConfig) *config.TracingConfig {
 	if m == nil {
 		return nil
 	}
-	tc := &config.TracingConfig{
-		Enabled:              m.Enabled,
-		Service:              m.ServiceName,
-		Exporter:             m.Exporter,
-		Endpoint:             m.Endpoint,
-		Protocol:             translateProtocol(m.Protocol),
-		SamplerType:          translateSamplerType(m.SamplerType),
-		SamplerRatio:         m.SamplerRatio,
-		Mode:                 m.Mode,
-		Topic:                m.Topic,
-		KafkaUsername:        m.KafkaUsername,
-		KafkaPassword:        m.KafkaPassword,
+	return &config.TracingConfig{
+		Enabled:               m.Enabled,
+		Service:               m.ServiceName,
+		Exporter:              m.Exporter,
+		Endpoint:              m.Endpoint,
+		SamplerType:           translateSamplerType(m.SamplerType),
+		SamplerRatio:          m.SamplerRatio,
+		Mode:                  m.Mode,
+		Topic:                 m.Topic,
+		KafkaUsername:         m.KafkaUsername,
+		KafkaPassword:         m.KafkaPassword,
 		KafkaSecurityProtocol: m.KafkaSecurityProtocol,
-		KafkaSASLMechanism:   m.KafkaSASLMechanism,
-		Stream:               m.Stream,
-		RedisPassword:        m.RedisPassword,
+		KafkaSASLMechanism:    m.KafkaSASLMechanism,
+		Stream:                m.Stream,
+		RedisPassword:         m.RedisPassword,
 	}
-	return tc
-}
-
-// translateProtocol maps the mqx shorthand `http` to dbx's
-// OTLP-over-HTTP/protobuf transport. Any other value passes through
-// unchanged so advanced users can override.
-func translateProtocol(p string) string {
-	if p == "http" {
-		return "http/protobuf"
-	}
-	return p
 }
 
 // translateSamplerType converts the mqx sampler shorthand into the

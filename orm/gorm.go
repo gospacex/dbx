@@ -25,11 +25,29 @@ type DialectorSource interface {
 // Open opens a *gorm.DB from a DialectorSource. Accepting a narrow interface
 // keeps callers like dbsql.Open (which needs the full DBConfig) decoupled
 // from callers like dbsql.OpenCluster (which only needs driver+DSN).
+//
+// OTel tracing callbacks are always installed; they are a no-op until a
+// TracerProvider is registered globally.
 func Open(cfg DialectorSource, opts ...gorm.Option) (*gorm.DB, error) {
+	return open(cfg, true, opts...)
+}
+
+// OpenNoTrace is Open without the OTel tracing callbacks. Use it when the
+// config explicitly disables tracing (enable_trace: false) and a global
+// TracerProvider may still exist for other components.
+func OpenNoTrace(cfg DialectorSource, opts ...gorm.Option) (*gorm.DB, error) {
+	return open(cfg, false, opts...)
+}
+
+func open(cfg DialectorSource, installTrace bool, opts ...gorm.Option) (*gorm.DB, error) {
 	d, err := Dialector(cfg.DriverName(), cfg.DSN())
 	if err != nil {
 		return nil, err
 	}
+	// The default Config (Warn-level logger) is prepended so a caller-supplied
+	// *gorm.Config in opts is applied after it and takes precedence — gorm
+	// applies options in order, and a later *gorm.Config overwrites the
+	// fields it carries (e.g. a custom Logger replaces the Warn default).
 	gormOpts := append([]gorm.Option{&gorm.Config{
 		Logger: logger.Default.LogMode(logger.Warn),
 	}}, opts...)
@@ -41,7 +59,9 @@ func Open(cfg DialectorSource, opts ...gorm.Option) (*gorm.DB, error) {
 	// delete so every SQL operation emits a span to the OTel global
 	// TracerProvider. No-op when no provider is registered, so it is
 	// always safe to call.
-	installTracing(db)
+	if installTrace {
+		installTracing(db)
+	}
 	return db, nil
 }
 

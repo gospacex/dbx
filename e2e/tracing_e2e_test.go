@@ -20,7 +20,7 @@ func TestE2E_Tracing_Kafka(t *testing.T) {
 	tc := &config.TracingConfig{
 		Enabled:  true,
 		Exporter: config.ExporterKafka,
-		Endpoint: "127.0.0.1:9092",
+		Endpoint: kafkaBroker(),
 		Topic:    "otel-traces-e2e",
 	}
 	if err := tc.Validate(); err != nil {
@@ -54,9 +54,9 @@ func TestE2E_Tracing_RedisStream(t *testing.T) {
 	tc := &config.TracingConfig{
 		Enabled:       true,
 		Exporter:      config.ExporterRedisStream,
-		Endpoint:      "127.0.0.1:6379",
+		Endpoint:      redisAddr(),
 		Stream:        "otel-traces-e2e",
-		RedisPassword: "redis123456",
+		RedisPassword: redisPass(),
 	}
 	if err := tc.Validate(); err != nil {
 		t.Fatalf("Validate error: %v", err)

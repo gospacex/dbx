@@ -8,7 +8,6 @@ import (
 	"github.com/gospacex/dbx/dbsql"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 // hardcodedMySQLConfig and hardcodedClusterConfig are the
@@ -154,9 +153,9 @@ func openClusterFromYAML(ctx context.Context, path string) (*gorm.DB, func(conte
 }
 
 // buildShutdown composes the 3-step shutdown sequence:
-//   1. TracerProvider.Shutdown  (stops accepting new spans)
-//   2. TracerProvider.ForceFlush (drains the batcher)
-//   3. sqlDB.Close               (returns connections to the pool)
+//  1. TracerProvider.Shutdown  (stops accepting new spans)
+//  2. TracerProvider.ForceFlush (drains the batcher)
+//  3. sqlDB.Close               (returns connections to the pool)
 //
 // The order is fixed and matches tasks.md §6 acceptance criterion 9.19.
 func buildShutdown(db *gorm.DB, shutdownTP func(context.Context) error) func(context.Context) error {
@@ -180,13 +179,4 @@ func buildShutdown(db *gorm.DB, shutdownTP func(context.Context) error) func(con
 		}
 		return nil
 	}
-}
-
-// asGormLogger wires the consoleLogger into GORM via a Logger option.
-// Used when callers want SQL output at the gorm level.
-func asGormLogger(l *consoleLogger) logger.Interface {
-	if l == nil {
-		return logger.Default
-	}
-	return l
 }

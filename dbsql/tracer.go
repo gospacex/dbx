@@ -11,11 +11,12 @@ import (
 	"github.com/gospacex/mqx"
 	"github.com/gospacex/mqx/kafkax"
 	"github.com/gospacex/mqx/redisx"
+	"github.com/gospacex/traceflag"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 )
 
@@ -110,18 +111,6 @@ func buildRedisConfig(tc *config.TracingConfig) mqx.Config {
 	}
 }
 
-// KafkaConfigFromTracing maps TracingConfig to Kafka connection settings.
-// Exported for testing; called internally by buildKafkaConfig.
-func KafkaConfigFromTracing(tc *config.TracingConfig) (brokers []string, defaultTopic string) {
-	return strings.Split(tc.Endpoint, ","), tc.Topic
-}
-
-// RedisConfigFromTracing maps TracingConfig to Redis connection settings.
-// Exported for testing; called internally by buildRedisConfig.
-func RedisConfigFromTracing(tc *config.TracingConfig) (addr, password string) {
-	return tc.Endpoint, tc.RedisPassword
-}
-
 // ExtractTracingAndApply initializes the global OTel TracerProvider from
 // TracingConfig and registers it with otel.SetTracerProvider. This enables
 // automatic GORM tracing via the callbacks installed by orm.Open().
@@ -136,7 +125,11 @@ func RedisConfigFromTracing(tc *config.TracingConfig) (addr, password string) {
 // Callers MUST defer ShutdownTracerProvider(ctx) before application exit to
 // flush pending spans and release resources.
 func ExtractTracingAndApply(ctx context.Context, tc *config.TracingConfig) error {
-	if tc == nil || !tc.Enabled {
+	// 接入 hubx 统一调用链开关：组件自身配置（tracing.enabled 或
+	// enable_trace）为主开关，全局总闸 traceflag.SetEnabled(false) 可一键
+	// 熔断。这里是 dbx 唯一的装配咽喉点，注册放这一处即可覆盖
+	// Open / OpenPath / OpenCluster* / OpenFromConfigx 全部入口。
+	if !traceflag.Apply("dbx", tc != nil && tc.Enabled) {
 		return nil
 	}
 
@@ -189,13 +182,10 @@ func ShutdownTracerProvider(ctx context.Context) error {
 		return nil
 	}
 
-	// Order is fixed: shutdown first to stop new spans, then
-	// force flush to drain anything buffered by the batcher.
+	// OTel SDK Shutdown already flushes the batch span processor and
+	// shuts down the exporter, so a separate ForceFlush is unnecessary.
 	if err := globalTP.Shutdown(ctx); err != nil {
 		return fmt.Errorf("dbsql: tp.Shutdown: %w", err)
-	}
-	if err := globalTP.ForceFlush(ctx); err != nil {
-		return fmt.Errorf("dbsql: tp.ForceFlush: %w", err)
 	}
 
 	globalTP = nil

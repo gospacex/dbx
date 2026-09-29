@@ -26,7 +26,6 @@ type TracingConfig struct {
 	Service      string  `yaml:"service" json:"service" toml:"service"`
 	Exporter     string  `yaml:"exporter" json:"exporter" toml:"exporter"`
 	Endpoint     string  `yaml:"endpoint" json:"endpoint" toml:"endpoint"`
-	Protocol     string  `yaml:"protocol" json:"protocol" toml:"protocol"`
 	SamplerType  string  `yaml:"sampler_type" json:"sampler_type" toml:"sampler_type"`
 	SamplerRatio float64 `yaml:"sampler_ratio" json:"sampler_ratio" toml:"sampler_ratio"`
 	// Mode selects single (POS) vs cluster (POC) for the underlying mqx
@@ -36,11 +35,11 @@ type TracingConfig struct {
 	// yaml schema is uniform.
 	Mode string `yaml:"mode,omitempty" json:"mode,omitempty" toml:"mode,omitempty"`
 	// Kafka-specific
-	Topic                string `yaml:"topic" json:"topic" toml:"topic"`
-	KafkaUsername        string `yaml:"kafka_username,omitempty" json:"kafka_username,omitempty" toml:"kafka_username,omitempty"`
-	KafkaPassword        string `yaml:"kafka_password,omitempty" json:"-" toml:"kafka_password,omitempty"`
+	Topic                 string `yaml:"topic" json:"topic" toml:"topic"`
+	KafkaUsername         string `yaml:"kafka_username,omitempty" json:"kafka_username,omitempty" toml:"kafka_username,omitempty"`
+	KafkaPassword         string `yaml:"kafka_password,omitempty" json:"-" toml:"kafka_password,omitempty"`
 	KafkaSecurityProtocol string `yaml:"kafka_security_protocol,omitempty" json:"kafka_security_protocol,omitempty" toml:"kafka_security_protocol,omitempty"`
-	KafkaSASLMechanism   string `yaml:"kafka_sasl_mechanism,omitempty" json:"kafka_sasl_mechanism,omitempty" toml:"kafka_sasl_mechanism,omitempty"`
+	KafkaSASLMechanism    string `yaml:"kafka_sasl_mechanism,omitempty" json:"kafka_sasl_mechanism,omitempty" toml:"kafka_sasl_mechanism,omitempty"`
 	// Redis-specific
 	Stream        string `yaml:"stream" json:"stream" toml:"stream"`
 	RedisPassword string `yaml:"redis_password" json:"-" toml:"redis_password"`
@@ -74,9 +73,6 @@ func (tc *TracingConfig) Validate() error {
 	case ExporterJaeger:
 		if tc.Endpoint == "" {
 			tc.Endpoint = "localhost:4318"
-		}
-		if tc.Protocol == "" {
-			tc.Protocol = "http/protobuf"
 		}
 	case ExporterKafka:
 		if tc.Endpoint == "" {

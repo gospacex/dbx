@@ -1,76 +1,89 @@
-```
-# Dependencies
+# ============================================================
+#  AI Coding 协作产物 / Agent 运行时状态
+# ============================================================
+.omc/
+.claude/
+.claude-tmp/
+.workbuddy/
+.agent-teams/
+.backup/
+.tmp_claude/
+.playwright-mcp/
+.gsd/
+.planning/
+.codegraph/
+graphify-out/
+.cursor/
+.cursorrules
+openspec/
+AGENTS.md
+CLAUDE.md
+CLAUDE.local.md
+GEMINI.md
 
-go.sum
+# AI 生成的规划 / 审计类文档
+PRD.md
+SDK_AUDIT.md
+REVIEW-REPORT.md
+*-AUDIT.md
 
-# Compiled and build artifacts
-# Go build artifacts
-*.o
-*.obj
-*.a
-# Build outputs at repo root
-/object
-/path
-
-# Tooling state
-/.omc/
-
-# Common Go build outputs
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.dll
-*.exe
-*.test
-*.out
-/vendor/
-
-# Go specific
-bin/
-pkg/
-*.test
-*.prof
-
-# Logs and temp files
-# Go cache directories
-go/pkg/
-go/bin/
-
-# Dependencies
-vendor/
-
-# Logs
-*.log
-*.tmp
-*.swp
-
-# Environment
-.env
-.env.local
-*.env.*
-
-# Editors
-.vscode/
+# ============================================================
+#  隐藏文件 / 编辑器 / 操作系统
+# ============================================================
+.*
+!.gitignore
+!.github/
 .idea/
+.vscode/
 *.swp
 *.swo
+*~
 
-# System
-# OS generated files
-.DS_Store
-Thumbs.db
-
-# Coverage
-coverage/
-htmlcov/
-.coverage
-
-# Build directories
+# ============================================================
+#  Go
+# ============================================================
+vendor/
+*.test
+*.exe
+*.exe~
+*.out
+*.o
+*.a
+*.so
+*.dylib
+*.prof
+*.coverprofile
+bin/
 dist/
 build/
-target/
-# Temporary files
+coverage/
+coverage.txt
+
+# ============================================================
+#  日志 / 本地数据 / 环境变量
+# ============================================================
+*.log
+logs/
+data/
 *.tmp
-```
+.env
+.env.*
+*.local.yaml
+*.local.toml
+*.local.json
+
+# ---- dbx 示例程序产物 ----
+/examples/mysql-crud/mysql-crud
+/examples/sqlite-configx/sqlite-configx
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# ============================================================
+#  Go 构建产物 / 本地数据 / 编辑器与 OS 文件
+# ============================================================
+.DS_Store
+.DS_Store?

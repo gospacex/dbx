@@ -19,10 +19,10 @@ type fakeDBConfig struct {
 	dsn    string
 }
 
-func (f *fakeDBConfig) DriverName() string { return f.driver }
-func (f *fakeDBConfig) DSN() string        { return f.dsn }
-func (f *fakeDBConfig) Validate() error    { return nil }
-func (f *fakeDBConfig) GetPool() *config.PoolConfig      { return nil }
+func (f *fakeDBConfig) DriverName() string                { return f.driver }
+func (f *fakeDBConfig) DSN() string                       { return f.dsn }
+func (f *fakeDBConfig) Validate() error                   { return nil }
+func (f *fakeDBConfig) GetPool() *config.PoolConfig       { return nil }
 func (f *fakeDBConfig) GetTracing() *config.TracingConfig { return nil }
 
 func TestDialector_Mysql(t *testing.T) {
