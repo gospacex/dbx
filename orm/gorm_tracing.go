@@ -32,6 +32,28 @@ const (
 	ormSpanKey = "dbx.orm.span"
 )
 
+// skipTracingKey is the context key marking a query as tracing-exempt.
+type skipTracingKey struct{}
+
+// WithoutTracing returns a context whose SQL statements emit NO db.* spans.
+//
+// 用途：后台轮询类内部查询（outbox tick、TTL 清扫、健康探针等）没有上游
+// 请求，gorm 回调给每条 SQL 开的 span 会成为无父孤儿根 trace —— Jaeger
+// 列表被单 span 噪声淹没，真实请求 trace 反而翻不到。把轮询查询的 ctx
+// 换成本函数的返回值即可；有真实工作要做时再换回普通 ctx，工作痕迹保留。
+func WithoutTracing(ctx context.Context) context.Context {
+	return context.WithValue(ctx, skipTracingKey{}, true)
+}
+
+// tracingSkipped reports whether ctx opts out of SQL span emission.
+func tracingSkipped(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	v, ok := ctx.Value(skipTracingKey{}).(bool)
+	return ok && v
+}
+
 // installTracing registers OTel tracing callbacks on db for the 4
 // SQL-issuing GORM v2 callback groups. Spans are routed through the
 // OTel global TracerProvider, so they work with all 3 dbx trace
@@ -79,6 +101,10 @@ func tracingBeforeAfter(op string) (before, after func(*gorm.DB)) {
 		ctx := db.Statement.Context
 		if ctx == nil {
 			ctx = context.Background()
+		}
+		// 免追踪 ctx（见 WithoutTracing）：不产 span 也不改写 Statement.Context。
+		if tracingSkipped(ctx) {
+			return
 		}
 		tracer := otel.Tracer(ormTracerName)
 		ctx, span := tracer.Start(ctx, "db."+op,
