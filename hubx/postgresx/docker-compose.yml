@@ -1,0 +1,39 @@
+# dbx/hubx/postgresx（PostgreSQL） - 独立开发环境
+# 用法：scripts/start.sh / scripts/verify.sh / scripts/stop.sh
+# 服务定义与 dbx/docker-compose.yml 中对应段一致，只改了容器名与网络名前缀，
+# 避免与根 compose（一次起全套）重名冲突。
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+
+  postgres:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/postgres:16-alpine
+    cpus: "0.5"
+    container_name: hubx-dbx-postgres
+    ports:
+      - "${HOST_PORT:-5432}:5432"
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    mem_limit: 512m
+    restart: unless-stopped
+    logging: *default-logging
+
+networks:
+  default:
+    name: hubx-dbx-hubx-postgresx-net
+    driver: bridge

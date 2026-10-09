@@ -1,0 +1,40 @@
+# dbx/hubx/mysqlx（MySQL） - 独立开发环境
+# 用法：scripts/start.sh / scripts/verify.sh / scripts/stop.sh
+# 服务定义与 dbx/docker-compose.yml 中对应段一致，只改了容器名与网络名前缀，
+# 避免与根 compose（一次起全套）重名冲突。
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+
+  mysql:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/mysql:8.4
+    cpus: "0.5"
+    container_name: hubx-dbx-mysql
+    ports:
+      - "${HOST_PORT:-3306}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: testdb
+    command:
+      - --sql-mode=ONLY_FULL_GROUP_BY,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    mem_limit: 512m
+    restart: unless-stopped
+    logging: *default-logging
+
+networks:
+  default:
+    name: hubx-dbx-hubx-mysqlx-net
+    driver: bridge
